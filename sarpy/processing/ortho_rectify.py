@@ -2604,7 +2604,7 @@ class OrthorectificationIterator(object):
                     dmin=self._dmin,
                     mmult=self._mmult,
                     data_mean=self._the_mean),
-                dtype='uint8')
+                dtype='uint16')
         else:
             return self._ortho_helper.get_orthorectified_from_array(this_ortho_bounds, row_array, col_array, this_data)
 
