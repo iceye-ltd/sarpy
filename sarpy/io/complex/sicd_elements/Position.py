@@ -2,18 +2,19 @@
 The PositionType definition.
 """
 
+__classification__ = "UNCLASSIFIED"
+__author__ = "Thomas McCullough"
+
+
 from typing import List, Union
-import logging
 
 import numpy
 
-from .base import Serializable, DEFAULT_STRICT, \
-    _SerializableDescriptor, _SerializableArrayDescriptor, SerializableArray
+from sarpy.io.xml.base import Serializable, SerializableArray
+from sarpy.io.xml.descriptors import SerializableDescriptor, SerializableArrayDescriptor
+
+from .base import DEFAULT_STRICT
 from .blocks import XYZType, XYZPolyType, XYZPolyAttributeType
-
-
-__classification__ = "UNCLASSIFIED"
-__author__ = "Thomas McCullough"
 
 
 class PositionType(Serializable):
@@ -23,19 +24,19 @@ class PositionType(Serializable):
     _collections_tags = {'RcvAPC': {'array': True, 'child_tag': 'RcvAPCPoly'}}
 
     # descriptors
-    ARPPoly = _SerializableDescriptor(
+    ARPPoly = SerializableDescriptor(
         'ARPPoly', XYZPolyType, _required, strict=DEFAULT_STRICT,
         docstring='Aperture Reference Point (ARP) position polynomial in ECF as a function of elapsed '
                   'seconds since start of collection.')  # type: XYZPolyType
-    GRPPoly = _SerializableDescriptor(
+    GRPPoly = SerializableDescriptor(
         'GRPPoly', XYZPolyType, _required, strict=DEFAULT_STRICT,
         docstring='Ground Reference Point (GRP) position polynomial in ECF as a function of elapsed '
                   'seconds since start of collection.')  # type: XYZPolyType
-    TxAPCPoly = _SerializableDescriptor(
+    TxAPCPoly = SerializableDescriptor(
         'TxAPCPoly', XYZPolyType, _required, strict=DEFAULT_STRICT,
         docstring='Transmit Aperture Phase Center (APC) position polynomial in ECF as a function of '
                   'elapsed seconds since start of collection.')  # type: XYZPolyType
-    RcvAPC = _SerializableArrayDescriptor(
+    RcvAPC = SerializableArrayDescriptor(
         'RcvAPC', XYZPolyAttributeType, _collections_tags, _required, strict=DEFAULT_STRICT,
         docstring='Receive Aperture Phase Center polynomials array. '
                   'Each polynomial has output in ECF, and represents a function of elapsed seconds since start of '
@@ -95,10 +96,10 @@ class PositionType(Serializable):
         pos = SCPCOA.ARPPos.get_array()
         vel = SCPCOA.ARPVel.get_array()
         acc = SCPCOA.ARPAcc.get_array()
-        coefs[0, :] = pos - vel * scptime + 0.5 * acc * scptime * scptime
-        coefs[1, :] = vel - acc * scptime
-        coefs[2, :] = acc
-        self.ARPPoly = XYZPolyType.from_array(coefs)
+        coefs[:, 0] = pos - vel*scptime + 0.5*acc*scptime*scptime
+        coefs[:, 1] = vel - acc*scptime
+        coefs[:, 2] = acc
+        self.ARPPoly = XYZPolyType(X=coefs[0, :], Y=coefs[1, :], Z=coefs[2, :])
 
     def _basic_validity_check(self):
         condition = super(PositionType, self)._basic_validity_check()

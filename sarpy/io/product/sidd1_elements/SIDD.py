@@ -10,9 +10,8 @@ import logging
 from typing import Union
 from collections import OrderedDict
 
-# noinspection PyProtectedMember
-from sarpy.io.complex.sicd_elements.base import Serializable, _SerializableDescriptor, \
-    DEFAULT_STRICT
+from sarpy.io.xml.base import Serializable
+from sarpy.io.xml.descriptors import SerializableDescriptor
 from .ProductCreation import ProductCreationType
 from .Display import ProductDisplayType
 from .GeographicAndTarget import GeographicAndTargetType
@@ -26,6 +25,9 @@ from sarpy.geometry import point_projection
 from sarpy.io.product.sidd_schema import get_specification_identifier, \
     get_urn_details, validate_xml_ns
 
+
+DEFAULT_STRICT = False
+logger = logging.getLogger(__name__)
 
 ############
 # namespace validate and definition of required entries in the namespace dictionary
@@ -54,42 +56,42 @@ class SIDDType(Serializable):
     _required = (
         'ProductCreation', 'Display', 'GeographicAndTarget', 'Measurement', 'ExploitationFeatures')
     # Descriptor
-    ProductCreation = _SerializableDescriptor(
+    ProductCreation = SerializableDescriptor(
         'ProductCreation', ProductCreationType, _required, strict=DEFAULT_STRICT,
         docstring='Information related to processor, classification, '
                   'and product type.')  # type: ProductCreationType
-    Display = _SerializableDescriptor(
+    Display = SerializableDescriptor(
         'Display', ProductDisplayType, _required, strict=DEFAULT_STRICT,
         docstring='Contains information on the parameters needed to display the product in '
                   'an exploitation tool.')  # type: ProductDisplayType
-    GeographicAndTarget = _SerializableDescriptor(
+    GeographicAndTarget = SerializableDescriptor(
         'GeographicAndTarget', GeographicAndTargetType, _required, strict=DEFAULT_STRICT,
         docstring='Contains generic and extensible targeting and geographic region '
                   'information.')  # type: GeographicAndTargetType
-    Measurement = _SerializableDescriptor(
+    Measurement = SerializableDescriptor(
         'Measurement', MeasurementType, _required, strict=DEFAULT_STRICT,
         docstring='Contains the metadata necessary for performing '
                   'measurements.')  # type: MeasurementType
-    ExploitationFeatures = _SerializableDescriptor(
+    ExploitationFeatures = SerializableDescriptor(
         'ExploitationFeatures', ExploitationFeaturesType, _required, strict=DEFAULT_STRICT,
         docstring='Computed metadata regarding the input collections and '
                   'final product.')  # type: ExploitationFeaturesType
-    DownstreamReprocessing = _SerializableDescriptor(
+    DownstreamReprocessing = SerializableDescriptor(
         'DownstreamReprocessing', DownstreamReprocessingType, _required, strict=DEFAULT_STRICT,
         docstring='Metadata describing any downstream processing of the '
                   'product.')  # type: Union[None, DownstreamReprocessingType]
-    ErrorStatistics = _SerializableDescriptor(
+    ErrorStatistics = SerializableDescriptor(
         'ErrorStatistics', ErrorStatisticsType, _required, strict=DEFAULT_STRICT,
         docstring='Error statistics passed through from the SICD '
                   'metadata.')  # type: Union[None, ErrorStatisticsType]
-    Radiometric = _SerializableDescriptor(
+    Radiometric = SerializableDescriptor(
         'Radiometric', RadiometricType, _required, strict=DEFAULT_STRICT,
         docstring='Radiometric information about the product.')  # type: Union[None, RadiometricType]
-    ProductProcessing = _SerializableDescriptor(
+    ProductProcessing = SerializableDescriptor(
         'ProductProcessing', ProductProcessingType, _required, strict=DEFAULT_STRICT,
         docstring='Contains metadata related to algorithms used during '
                   'product generation.')  # type: ProductProcessingType
-    Annotations = _SerializableDescriptor(
+    Annotations = SerializableDescriptor(
         'Annotations', AnnotationsType, _required, strict=DEFAULT_STRICT,
         docstring='List of annotations for the imagery.')  # type: AnnotationsType
 
@@ -158,7 +160,7 @@ class SIDDType(Serializable):
             return True
 
         if self.Measurement.ProjectionType != 'PlaneProjection':
-            logging.error(
+            logger.error(
                 'Formulating a projection is only supported for PlaneProjection, '
                 'got {}.'.format(self.Measurement.ProjectionType))
             return False
@@ -189,7 +191,7 @@ class SIDDType(Serializable):
         """
 
         if not self.can_project_coordinates():
-            logging.error('The COAProjection object cannot be defined.')
+            logger.error('The COAProjection object cannot be defined.')
             return
 
         if self._coa_projection is not None and not overide:
@@ -337,7 +339,6 @@ class SIDDType(Serializable):
             ('xmlns', _SIDD_URN), ('xmlns:sicommon', _SICOMMON_URN),
             ('xmlns:sfa', _SFA_URN), ('xmlns:ism', _ISM_URN)])
 
-
     @staticmethod
     def get_des_details():
         """
@@ -365,7 +366,7 @@ class SIDDType(Serializable):
         if not xml_ns[ns_key].startswith('urn:SIDD:1.'):
             raise ValueError('Cannot use urn {} for SIDD version 1.0'.format(xml_ns[ns_key]))
         if not valid_ns:
-            logging.warning(
+            logger.warning(
                 'SIDD namespace validation failed,\n\t'
                 'which may lead to subsequent deserialization failures')
         return super(SIDDType, cls).from_node(node, xml_ns, ns_key=ns_key, kwargs=kwargs)

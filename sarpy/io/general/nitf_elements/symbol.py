@@ -2,6 +2,10 @@
 The symbol header element definition - only applies to NITF 2.0
 """
 
+__classification__ = "UNCLASSIFIED"
+__author__ = "Thomas McCullough"
+
+
 import struct
 import numpy
 
@@ -9,9 +13,6 @@ from sarpy.compliance import int_func
 from .base import NITFElement, UserHeaderType, _IntegerDescriptor,\
     _StringDescriptor, _StringEnumDescriptor, _NITFElementDescriptor
 from .security import NITFSecurityTags0
-
-__classification__ = "UNCLASSIFIED"
-__author__ = "Thomas McCullough"
 
 
 class SymbolSegmentHeader(NITFElement):
@@ -52,7 +53,6 @@ class SymbolSegmentHeader(NITFElement):
     def __init__(self, **kwargs):
         self._DLUT = None
         super(SymbolSegmentHeader, self).__init__(**kwargs)
-
 
     @classmethod
     def minimum_length(cls):
@@ -127,7 +127,9 @@ class SymbolSegmentHeader(NITFElement):
                 fields['DLUT'] = None
             else:
                 fields['DLUT'] = numpy.array(
-                    struct.unpack('{}B'.format(3*nelut), value[loc:loc + 3*nelut]), dtype=numpy.uint8).reshape((nelut, 3))
+                    struct.unpack(
+                        '{}B'.format(3*nelut),
+                        value[loc:loc + 3*nelut]), dtype=numpy.uint8).reshape((nelut, 3))
                 loc += nelut*3
             return loc
         return super(SymbolSegmentHeader, cls)._parse_attribute(fields, attribute, value, start)

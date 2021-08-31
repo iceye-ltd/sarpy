@@ -2,16 +2,15 @@
 The security tags definitions, which are used in each NITF subheader element.
 """
 
-import logging
-from .base import NITFElement, _StringDescriptor, _StringEnumDescriptor, _parse_str
-
 __classification__ = "UNCLASSIFIED"
 __author__ = "Thomas McCullough"
 
 
+from .base import NITFElement, _StringDescriptor, _StringEnumDescriptor, _parse_str
+
+
 #########
 # NITF 2.1 version
-
 
 class NITFSecurityTags(NITFElement):
     """

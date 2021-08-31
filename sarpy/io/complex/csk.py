@@ -8,6 +8,7 @@ __author__ = ("Thomas McCullough", "Jarred Barber", "Wade Schwartzkopf")
 import logging
 from collections import OrderedDict
 import os
+import re
 from typing import Tuple, Dict
 from datetime import datetime
 
@@ -15,32 +16,34 @@ import numpy
 from numpy.polynomial import polynomial
 from scipy.constants import speed_of_light
 
-try:
-    from sarpy.io.complex import csk_addin
-except ImportError:
-    csk_addin = None
-
 from sarpy.compliance import string_types, bytes_to_string
 from sarpy.io.complex.base import SICDTypeReader, H5Chipper, h5py, is_hdf5
 from sarpy.io.complex.sicd_elements.blocks import Poly1DType, Poly2DType, RowColType
 from sarpy.io.complex.sicd_elements.SICD import SICDType
 from sarpy.io.complex.sicd_elements.CollectionInfo import CollectionInfoType, RadarModeType
 from sarpy.io.complex.sicd_elements.ImageCreation import ImageCreationType
-from sarpy.io.complex.sicd_elements.RadarCollection import RadarCollectionType, WaveformParametersType, \
-    TxFrequencyType, ChanParametersType, TxStepType
+from sarpy.io.complex.sicd_elements.RadarCollection import RadarCollectionType, \
+    WaveformParametersType, ChanParametersType, TxStepType
 from sarpy.io.complex.sicd_elements.ImageData import ImageDataType
 from sarpy.io.complex.sicd_elements.GeoData import GeoDataType, SCPType
 from sarpy.io.complex.sicd_elements.SCPCOA import SCPCOAType
 from sarpy.io.complex.sicd_elements.Position import PositionType, XYZPolyType
 from sarpy.io.complex.sicd_elements.Grid import GridType, DirParamType, WgtTypeType
 from sarpy.io.complex.sicd_elements.Timeline import TimelineType, IPPSetType
-from sarpy.io.complex.sicd_elements.ImageFormation import ImageFormationType, TxFrequencyProcType, RcvChanProcType
+from sarpy.io.complex.sicd_elements.ImageFormation import ImageFormationType, \
+    RcvChanProcType
 from sarpy.io.complex.sicd_elements.RMA import RMAType, INCAType
 from sarpy.io.complex.sicd_elements.Radiometric import RadiometricType
 from sarpy.io.general.base import BaseReader, SarpyIOError
 from sarpy.io.general.utils import get_seconds, parse_timestring, is_file_like
 from sarpy.io.complex.utils import fit_time_coa_polynomial, fit_position_xvalidation
 
+try:
+    from sarpy.io.complex import csk_addin
+except ImportError:
+    csk_addin = None
+
+logger = logging.getLogger(__name__)
 
 ########
 # base expected functionality for a module with an implemented Reader
@@ -72,7 +75,7 @@ def is_a(file_name):
 
     try:
         csk_details = CSKDetails(file_name)
-        logging.info('File {} is determined to be a Cosmo Skymed file.'.format(file_name))
+        logger.info('File {} is determined to be a Cosmo Skymed file.'.format(file_name))
         return CSKReader(csk_details)
     except SarpyIOError:
         return None
@@ -196,6 +199,17 @@ class CSKDetails(object):
     def _parse_pol(str_in):
         return '{}:{}'.format(str_in[0], str_in[1])
 
+    def _get_polarization(self, h5_dict, band_dict, band_name):
+        # type: (dict, dict, str) -> str
+        if 'Polarisation' in band_dict[band_name]:
+            return band_dict[band_name]['Polarisation']
+        elif 'Polarization' in h5_dict:
+            return h5_dict['Polarization']
+        else:
+            raise ValueError(
+                'Failed finding polarization for file {}\n\t'
+                'mission id {} and band name {}'.format(self.file_name, self.mission_id, band_name))
+
     def _get_base_sicd(self, h5_dict, band_dict):
         # type: (dict, dict) -> SICDType
 
@@ -210,7 +224,7 @@ class CSKDetails(object):
                 elif acq_mode in ['ENHANCED SPOTLIGHT', 'SMART']:
                     mode_type = 'DYNAMIC STRIPMAP'
                 else:
-                    logging.warning('Got unexpected acquisition mode {}'.format(acq_mode))
+                    logger.warning('Got unexpected acquisition mode {}'.format(acq_mode))
                     mode_type = 'DYNAMIC STRIPMAP'
             elif self.mission_id == 'KMPS':
                 if acq_mode in ['STANDARD', 'ENHANCED STANDARD']:
@@ -222,7 +236,7 @@ class CSKDetails(object):
                     # "spotlight"
                     mode_type = 'DYNAMIC STRIPMAP'
                 else:
-                    logging.warning('Got unexpected acquisition mode {}'.format(acq_mode))
+                    logger.warning('Got unexpected acquisition mode {}'.format(acq_mode))
                     mode_type = 'DYNAMIC STRIPMAP'
             elif self.mission_id == 'CSG':
                 if acq_mode.startswith('SPOTLIGHT'):
@@ -230,7 +244,9 @@ class CSKDetails(object):
                 elif acq_mode in ['STRIPMAP', 'QUADPOL']:
                     mode_type = "STRIPMAP"
                 else:
-                    logging.warning('Got unhandled acquisition mode {}, setting to DYNAMIC STRIPMAP'.format(acq_mode))
+                    logger.warning(
+                        'Got unhandled acquisition mode {},\n\t'
+                        'setting to DYNAMIC STRIPMAP'.format(acq_mode))
                     mode_type = 'DYNAMIC STRIPMAP'
             else:
                 raise ValueError('Unhandled mission id {}'.format(self._mission_id))
@@ -238,7 +254,7 @@ class CSKDetails(object):
             start_time_dt = collect_start.astype('datetime64[s]').astype(datetime)
             date_str = start_time_dt.strftime('%d%b%y').upper()
             time_str = start_time_dt.strftime('%H%M%S') + 'Z'
-            core_name = '{}_{}_{}'.format(date_str, self.mission_id, time_str)
+            core_name = '{}_{}_{}'.format(date_str, h5_dict['Satellite ID'], time_str)
             collect_info = CollectionInfoType(
                 Classification='UNCLASSIFIED',
                 CollectorName=h5_dict['Satellite ID'],
@@ -270,17 +286,17 @@ class CSKDetails(object):
                     params = {'COEFFICIENT': '{0:0.16G}'.format(coefficient)}
                 out = WgtTypeType(WindowName=weight_name, Parameters=params)
                 if weight_name != 'HAMMING':
-                    logging.warning(
-                        'Got unexpected weight scheme {} for {}. The weighting will '
-                        'not be properly populated.'.format(weight_name, direction))
+                    logger.warning(
+                        'Got unexpected weight scheme {} for {}.\n\t'
+                        'The weighting will not be properly populated.'.format(weight_name, direction))
                 return out
 
-            if h5_dict['Projection ID'] == 'SLANT RANGE/AZIMUTH':
+            if re.sub(' ', '', h5_dict['Projection ID']).upper() == 'SLANTRANGE/AZIMUTH':
                 image_plane = 'SLANT'
                 gr_type = 'RGZERO'
             else:
                 image_plane = 'GROUND'
-                gr_type = None
+                gr_type = 'PLANE'
             # Row
             row_window_name = h5_dict['Range Focusing Weighting Function'].rstrip().upper()
             row_coefficient = h5_dict.get('Range Focusing Weighting Coefficient', None)
@@ -314,17 +330,21 @@ class CSKDetails(object):
             # type: () -> RadarCollectionType
             tx_pols = []
             chan_params = []
-            for i, bdname in enumerate(band_dict):
-                if 'Polarisation' in band_dict[bdname]:
-                    pol = band_dict[bdname]['Polarisation']
-                elif 'Polarization' in h5_dict:
-                    pol = h5_dict['Polarization']
-                else:
-                    raise ValueError(
-                        'Failed finding polarization for file {}\nmission id {}'.format(
-                            self._file_name, self._mission_id))
-                tx_pols.append(pol[0])
-                chan_params.append(ChanParametersType(TxRcvPolarization=self._parse_pol(pol), index=i))
+
+            if self.mission_id == 'CSG' and len(band_dict) == 1 and \
+                    h5_dict['Acquisition Mode'].upper() == 'QUADPOL':
+                # it seems like 2nd generation files only contain one polarization
+                pols = ['HH', 'HV', 'VH', 'VV']
+                tx_pols.extend([pol[0] for pol in pols])
+                chan_params.extend([
+                    ChanParametersType(TxRcvPolarization=self._parse_pol(pol), index=i+1)
+                    for i, pol in enumerate(pols)])
+            else:
+                for i, bdname in enumerate(band_dict):
+                    pol = self._get_polarization(h5_dict, band_dict, bdname)
+                    tx_pols.append(pol[0])
+                    chan_params.append(ChanParametersType(TxRcvPolarization=self._parse_pol(pol), index=i+1))
+
             if len(tx_pols) == 1:
                 return RadarCollectionType(RcvChannels=chan_params, TxPolarization=tx_pols[0])
             else:
@@ -474,8 +494,16 @@ class CSKDetails(object):
             ipp_el.TEnd = duration
             ipp_el.IPPPoly = Poly1DType(Coefs=(0, prf))
 
-        def update_radar_collection(sicd, band_name, ind):
-            # type: (SICDType, str, int) -> None
+        def update_radar_collection(sicd, band_name):
+            # type: (SICDType, str) -> None
+            ind = None
+            for the_chan_index, chan in enumerate(sicd.RadarCollection.RcvChannels):
+                if chan.TxRcvPolarization == polarization:
+                    ind = the_chan_index
+                    break
+            if ind is None:
+                raise ValueError('Failed to find receive channel for polarization {}'.format(polarization))
+
             chirp_length = band_dict[band_name]['Range Chirp Length']
             chirp_rate = abs(band_dict[band_name]['Range Chirp Rate'])
             sample_rate = band_dict[band_name]['Sampling Rate']
@@ -485,7 +513,7 @@ class CSKDetails(object):
             band_width = chirp_length*chirp_rate
             fr_min = center_frequency - 0.5*band_width
             fr_max = center_frequency + 0.5*band_width
-            sicd.RadarCollection.TxFrequency = TxFrequencyType(Min=fr_min, Max=fr_max)
+            sicd.RadarCollection.TxFrequency = (fr_min, fr_max)
             sicd.RadarCollection.Waveform = [
                 WaveformParametersType(index=0,
                                        TxPulseLength=chirp_length,
@@ -496,9 +524,7 @@ class CSKDetails(object):
                                        RcvFMRate=rcv_fm_rate,
                                        RcvWindowLength=win_length/sample_rate), ]
             sicd.ImageFormation.RcvChanProc.ChanIndices = [ind+1, ]
-            sicd.ImageFormation.TxFrequencyProc = TxFrequencyProcType(MinProc=fr_min,
-                                                                      MaxProc=fr_max)
-            sicd.ImageFormation.TxRcvPolarizationProc = sicd.RadarCollection.RcvChannels[ind].TxRcvPolarization
+            sicd.ImageFormation.TxFrequencyProc = (fr_min, fr_max)
 
         def update_rma_and_grid(sicd, band_name):
             # type: (SICDType, str) -> None
@@ -588,23 +614,26 @@ class CSKDetails(object):
         ref_time = parse_timestring(h5_dict['Reference UTC'], precision='ns')
         ref_time_offset = get_seconds(ref_time, collect_start, precision='ns')
 
-        for i, bd_name in enumerate(band_dict):
+        for bd_name in band_dict:
+            polarization = self._parse_pol(self._get_polarization(h5_dict, band_dict, bd_name))
             az_ref_time, rg_ref_time, t_dop_poly_az, t_dop_poly_rg, t_dop_rate_poly_rg = \
                 self._get_dop_poly_details(h5_dict, band_dict, bd_name)
             dop_poly_az = Poly1DType(Coefs=t_dop_poly_az)
             dop_poly_rg = Poly1DType(Coefs=t_dop_poly_rg)
 
             t_sicd = base_sicd.copy()
-            t_sicd.derive()
-            update_scp_prelim(t_sicd, bd_name)  # set preliminary value for SCP (required for projection)
+            t_sicd.ImageFormation.TxRcvPolarizationProc = polarization
+
             row_bw = band_dict[bd_name]['Range Focusing Bandwidth']*2/speed_of_light
             row_ss = band_dict[bd_name]['Column Spacing']
             rg_first_time, ss_rg_s, az_first_time, ss_az_s, use_sign2 = update_image_data(t_sicd, bd_name)
             use_sign, dop_rate_poly_rg = check_switch_state()
             update_timeline(t_sicd, bd_name)
-            update_radar_collection(t_sicd, bd_name, i)
+            update_radar_collection(t_sicd, bd_name)
             update_rma_and_grid(t_sicd, bd_name)
             update_radiometric(t_sicd, bd_name)
+
+            update_scp_prelim(t_sicd, bd_name)  # set preliminary value for SCP (required for projection)
             update_geodata(t_sicd)
             t_sicd.derive()
             # t_sicd.populate_rniirs(override=False)

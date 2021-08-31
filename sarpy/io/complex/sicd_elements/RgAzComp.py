@@ -2,17 +2,23 @@
 The RgAzCompType definition.
 """
 
+__classification__ = "UNCLASSIFIED"
+__author__ = "Thomas McCullough"
+
+
 import logging
 
 import numpy
 from numpy.linalg import norm
 
-from .base import Serializable, DEFAULT_STRICT, _FloatDescriptor, _SerializableDescriptor
+from sarpy.io.xml.base import Serializable
+from sarpy.io.xml.descriptors import FloatDescriptor, SerializableDescriptor
+
+from .base import DEFAULT_STRICT
 from .blocks import Poly1DType
 
 
-__classification__ = "UNCLASSIFIED"
-__author__ = "Thomas McCullough"
+logger = logging.getLogger(__name__)
 
 
 class RgAzCompType(Serializable):
@@ -24,11 +30,11 @@ class RgAzCompType(Serializable):
     _required = _fields
     _numeric_format = {'AzSF': '0.16G'}
     # descriptors
-    AzSF = _FloatDescriptor(
+    AzSF = FloatDescriptor(
         'AzSF', _required, strict=DEFAULT_STRICT,
         docstring='Scale factor that scales image coordinate az = ycol (meters) to a delta cosine of the '
                   'Doppler Cone Angle at COA, *(in 1/m)*')  # type: float
-    KazPoly = _SerializableDescriptor(
+    KazPoly = SerializableDescriptor(
         'KazPoly', Poly1DType, _required, strict=DEFAULT_STRICT,
         docstring='Polynomial function that yields azimuth spatial frequency *(Kaz = Kcol)* as a function of '
                   'slow time ``(variable 1)``. That is '
@@ -73,9 +79,9 @@ class RgAzCompType(Serializable):
         if self.AzSF is None:
             self.AzSF = az_sf
         elif abs(self.AzSF - az_sf) > 1e-3:
-            logging.warning(
-                'The derived value for RgAzComp.AzSF is {}, while the current '
-                'setting is {}.'.format(az_sf, self.AzSF))
+            logger.warning(
+                'The derived value for RgAzComp.AzSF is {},\n\t'
+                'while the current setting is {}.'.format(az_sf, self.AzSF))
 
         if self.KazPoly is None:
             if Grid.Row.KCtr is not None and Timeline is not None and Timeline.IPP is not None and \

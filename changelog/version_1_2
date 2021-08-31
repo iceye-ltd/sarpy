@@ -1,5 +1,13 @@
 # This details the important differences introduced in sarpy 1.2
 
+* .13 - Adding support for GFF version 1.6/1.8 and 2 files
+        Including some helper functions for more streamlined use of the AFRL structures
+* .12 - Refactoring so that the xml/serialization is more clearly structured
+        Adding AFRL labeling schema object oriented structure
+* .11 - Updated the logging scheme to be sarpy specific
+* .10 - Adding support for Compensated Received Signal Data (CRSD) format reading and writing
+* .9 - Fixing typo in Cosmo SkyMed mode handling
+* .8 - Handle 2nd generation Cosmo SkyMed QuadPol collections correctly
 * .7 - Improve and correct a few SICD validation fixes
 * .6 - Fix create_kmz command line bug
        Improve sicd validation for values in GeoData.ImageCorners, GeoData.ValidData,

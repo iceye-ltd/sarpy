@@ -2,6 +2,10 @@
 Module for reading SICD files - should support SICD version 0.3 and above.
 """
 
+__classification__ = "UNCLASSIFIED"
+__author__ = ("Thomas McCullough", "Wade Schwartzkopf")
+
+
 import re
 import sys
 import logging
@@ -16,7 +20,8 @@ from sarpy.compliance import string_types
 from sarpy.io.general.base import AggregateChipper, SarpyIOError
 from sarpy.io.general.nitf import NITFReader, NITFWriter, ImageDetails, DESDetails, \
     image_segmentation, get_npp_block, interpolate_corner_points_string
-from sarpy.io.general.utils import parse_xml_from_string, is_file_like
+from sarpy.io.xml.base import parse_xml_from_string
+from sarpy.io.general.utils import is_file_like
 from sarpy.io.complex.base import SICDTypeReader
 from sarpy.io.complex.sicd_elements.SICD import SICDType, get_specification_identifier
 from sarpy.io.complex.sicd_elements.ImageCreation import ImageCreationType
@@ -34,8 +39,7 @@ else:
     # noinspection PyUnresolvedReferences
     from io import StringIO
 
-__classification__ = "UNCLASSIFIED"
-__author__ = ("Thomas McCullough", "Wade Schwartzkopf")
+logger = logging.getLogger(__name__)
 
 
 ########
@@ -59,7 +63,7 @@ def is_a(file_name):
     try:
         nitf_details = SICDDetails(file_name)
         if nitf_details.is_sicd:
-            logging.info('File {} is determined to be a SICD (NITF format) file.'.format(file_name))
+            logger.info('File {} is determined to be a SICD (NITF format) file.'.format(file_name))
             return SICDReader(nitf_details)
         else:
             return None
@@ -195,8 +199,9 @@ class SICDDetails(NITFDetails):
                             self._sicd_meta = SICDType.from_node(root_node, xml_ns, ns_key='default')
                         break
                 except Exception as e:
-                    logging.error('We found an apparent old-style SICD DES header, '
-                                  'but failed parsing with error {}'.format(e))
+                    logger.error(
+                        'We found an apparent old-style SICD DES header,\n\t'
+                        'but failed parsing with error {}'.format(e))
                     continue
 
         if not self._is_sicd:
@@ -275,9 +280,10 @@ class SICDDetails(NITFDetails):
         des_bytes = self.des_header.to_bytes()
         des_size = self._nitf_header.DataExtensions.subhead_sizes[self._des_index]
         if len(des_bytes) != des_size:
-            logging.error(
-                "The size of the current des header {} bytes, does not match the "
-                "previous {} bytes. They cannot be trivially replaced.".format(des_bytes, des_size))
+            logger.error(
+                "The size of the current des header {} bytes,\n\t"
+                "does not match the previous {} bytes.\n\t"
+                "They cannot be trivially replaced.".format(des_bytes, des_size))
             return False
         des_loc = self.des_subheader_offsets[self._des_index]
         if not os.path.exists(self._file_name):
@@ -441,7 +447,7 @@ def validate_sicd_for_writing(sicd_meta):
         raise ValueError('The sicd_meta has ImageData with unpopulated NumRows or NumCols, '
                          'and nothing useful can be inferred.')
     if sicd_meta.ImageData.PixelType is None:
-        logging.warning('The PixelType for sicd_meta is unset, so defaulting to RE32F_IM32F.')
+        logger.warning('The PixelType for sicd_meta is unset, so defaulting to RE32F_IM32F.')
         sicd_meta.ImageData.PixelType = 'RE32F_IM32F'
 
     sicd_meta = sicd_meta.copy()
@@ -557,8 +563,9 @@ def extract_clas(sicd):
     elif 'FOUO' in c_str.upper() or 'RESTRICTED' in c_str.upper():
         return 'R'
     else:
-        logging.critical('Unclear how to extract CLAS for classification string {}. '
-                         'Should be set appropriately.'.format(c_str))
+        logger.critical(
+            'Unclear how to extract CLAS for classification string {}.\n\t'
+            'Should be set appropriately.'.format(c_str))
         return 'U'
 
 

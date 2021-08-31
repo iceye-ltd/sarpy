@@ -22,14 +22,15 @@ from sarpy.io.complex.sicd_elements.SICD import SICDType
 from sarpy.io.complex.sicd_elements.CollectionInfo import CollectionInfoType, RadarModeType
 from sarpy.io.complex.sicd_elements.ImageCreation import ImageCreationType
 from sarpy.io.complex.sicd_elements.RadarCollection import RadarCollectionType, \
-    TxFrequencyType, ChanParametersType, TxStepType
+    ChanParametersType, TxStepType
 from sarpy.io.complex.sicd_elements.ImageData import ImageDataType
 from sarpy.io.complex.sicd_elements.GeoData import GeoDataType, SCPType
 from sarpy.io.complex.sicd_elements.SCPCOA import SCPCOAType
 from sarpy.io.complex.sicd_elements.Position import PositionType, XYZPolyType
 from sarpy.io.complex.sicd_elements.Grid import GridType, DirParamType, WgtTypeType
 from sarpy.io.complex.sicd_elements.Timeline import TimelineType, IPPSetType
-from sarpy.io.complex.sicd_elements.ImageFormation import ImageFormationType, TxFrequencyProcType, RcvChanProcType
+from sarpy.io.complex.sicd_elements.ImageFormation import ImageFormationType, \
+    RcvChanProcType
 from sarpy.io.complex.sicd_elements.RMA import RMAType, INCAType
 from sarpy.io.complex.sicd_elements.Radiometric import RadiometricType, NoiseLevelType_
 from sarpy.geometry import point_projection
@@ -37,6 +38,7 @@ from sarpy.io.general.base import BaseReader, SarpyIOError
 from sarpy.io.general.utils import get_seconds, parse_timestring, is_file_like
 from sarpy.io.complex.utils import fit_position_xvalidation, two_dim_poly_fit
 
+logger = logging.getLogger(__name__)
 
 ########
 # base expected functionality for a module with an implemented Reader
@@ -68,7 +70,7 @@ def is_a(file_name):
 
     try:
         nisar_details = NISARDetails(file_name)
-        logging.info('File {} is determined to be a NISAR file.'.format(file_name))
+        logger.info('File {} is determined to be a NISAR file.'.format(file_name))
         return NISARReader(nisar_details)
     except (ImportError, SarpyIOError):
         return None
@@ -415,7 +417,7 @@ class NISARDetails(object):
                     tx_pol.append(entry[0])
             center_freq_t = gp['acquiredCenterFrequency'][()]
             bw = gp['acquiredRangeBandwidth'][()]
-            tx_freq = TxFrequencyType(Min=center_freq_t - 0.5*bw, Max=center_freq_t + 0.5*bw)
+            tx_freq = (center_freq_t - 0.5*bw, center_freq_t + 0.5*bw)
             rcv_chans = [ChanParametersType(TxRcvPolarization=pol) for pol in tx_rcv_pol_t]
             if len(tx_pol) == 1:
                 tx_sequence = None
@@ -434,9 +436,7 @@ class NISARDetails(object):
         def update_image_formation():
             center_freq_t = gp['processedCenterFrequency'][()]
             bw = gp['processedRangeBandwidth'][()]
-            t_sicd.ImageFormation.TxFrequencyProc = TxFrequencyProcType(
-                MinProc=center_freq_t - 0.5*bw,
-                MaxProc=center_freq_t + 0.5*bw, )
+            t_sicd.ImageFormation.TxFrequencyProc = (center_freq_t - 0.5*bw, center_freq_t + 0.5*bw)
             return center_freq_t
 
         pols = _get_string_list(gp['listOfPolarizations'][:])
@@ -535,9 +535,11 @@ class NISARDetails(object):
             coefs, residuals, rank, sing_values = two_dim_poly_fit(
                 coords_rg_2d_t, coords_az_2d_t, dopcentroid_sampled,
                 x_order=3, y_order=3, x_scale=1e-3, y_scale=1e-3, rcond=1e-40)
-            logging.info(
-                'The dop_centroid_poly fit details:\nroot mean square residuals = {}\nrank = {}\nsingular values = {}'.format(
-                    residuals, rank, sing_values))
+            logger.info(
+                'The dop_centroid_poly fit details:\n\t'
+                'root mean square residuals = {}\n\t'
+                'rank = {}\n\t'
+                'singular values = {}'.format(residuals, rank, sing_values))
             t_sicd.RMA.INCA.DopCentroidPoly = Poly2DType(Coefs=coefs)
             t_sicd.Grid.Col.DeltaKCOAPoly = Poly2DType(Coefs=coefs*ss_az_s/t_sicd.Grid.Col.SS)
 
@@ -546,9 +548,11 @@ class NISARDetails(object):
             coefs, residuals, rank, sing_values = two_dim_poly_fit(
                 coords_rg_2d_t, coords_az_2d_t, time_coa_sampled,
                 x_order=3, y_order=3, x_scale=1e-3, y_scale=1e-3, rcond=1e-40)
-            logging.info(
-                'The time_coa_poly fit details:\nroot mean square residuals = {}\nrank = {}\nsingular values = {}'.format(
-                    residuals, rank, sing_values))
+            logger.info(
+                'The time_coa_poly fit details:\n\t'
+                'root mean square residuals = {}\n\t'
+                'rank = {}\n\t'
+                'singular values = {}'.format(residuals, rank, sing_values))
             t_sicd.Grid.TimeCOAPoly = Poly2DType(Coefs=coefs)
 
             return coords_rg_2d_t, coords_az_2d_t
@@ -565,16 +569,18 @@ class NISARDetails(object):
                         coefs, residuals, rank, sing_values = two_dim_poly_fit(
                             coords_rg_2d[boolc], coords_az_2d[boolc], array,
                             x_order=3, y_order=3, x_scale=1e-3, y_scale=1e-3, rcond=1e-40)
-                        logging.info(
-                            'The {} fit details:\nroot mean square residuals = {}\nrank = {}\nsingular values = {}'.format(
-                                name, residuals, rank, sing_values))
+                        logger.info(
+                            'The {} fit details:\n\t'
+                            'root mean square residuals = {}\n\t'
+                            'rank = {}\n\t'
+                            'singular values = {}'.format(name, residuals, rank, sing_values))
                     else:
                         # it's constant, so just use a constant polynomial
                         coefs = [[array[0], ], ]
-                        logging.info('The {} values are constant'.format(name))
+                        logger.info('The {} values are constant'.format(name))
                     return Poly2DType(Coefs=coefs)
                 else:
-                    logging.warning('No non-trivial values for {} provided.'.format(name))
+                    logger.warning('No non-trivial values for {} provided.'.format(name))
                     return None
 
             beta0_poly = get_poly(beta0, 'beta0')
@@ -588,8 +594,11 @@ class NISARDetails(object):
             coefs, residuals, rank, sing_values = two_dim_poly_fit(
                 coords_rg_2d, coords_az_2d, noise_samples,
                 x_order=3, y_order=3, x_scale=1e-3, y_scale=1e-3, rcond=1e-40)
-            logging.info(
-                'The noise_poly fit details:\nroot mean square residuals = {}\nrank = {}\nsingular values = {}'.format(
+            logger.info(
+                'The noise_poly fit details:\n\t'
+                'root mean square residuals = {}\n\t'
+                'rank = {}\n\t'
+                'singular values = {}'.format(
                     residuals, rank, sing_values))
             t_sicd.Radiometric = RadiometricType(
                 BetaZeroSFPoly=beta0_poly,

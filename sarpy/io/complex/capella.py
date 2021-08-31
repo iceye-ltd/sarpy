@@ -30,10 +30,13 @@ from sarpy.io.complex.sicd_elements.GeoData import GeoDataType, SCPType
 from sarpy.io.complex.sicd_elements.Position import PositionType
 from sarpy.io.complex.sicd_elements.Grid import GridType, DirParamType, WgtTypeType
 from sarpy.io.complex.sicd_elements.RadarCollection import RadarCollectionType, \
-    WaveformParametersType, TxFrequencyType, ChanParametersType
+    WaveformParametersType, ChanParametersType
 from sarpy.io.complex.sicd_elements.Timeline import TimelineType, IPPSetType
-from sarpy.io.complex.sicd_elements.ImageFormation import ImageFormationType, RcvChanProcType, \
-    TxFrequencyProcType, ProcessingType
+from sarpy.io.complex.sicd_elements.ImageFormation import ImageFormationType, \
+    RcvChanProcType, ProcessingType
+
+
+logger = logging.getLogger(__name__)
 
 
 ########
@@ -61,7 +64,7 @@ def is_a(file_name):
 
     try:
         capella_details = CapellaDetails(file_name)
-        logging.info('File {} is determined to be a Capella file.'.format(file_name))
+        logger.info('File {} is determined to be a Capella file.'.format(file_name))
         return CapellaReader(capella_details)
     except SarpyIOError:
         return None
@@ -96,7 +99,7 @@ class CapellaDetails(object):
         try:
             self._img_desc_tags = json.loads(img_format)  # type: Dict[str, Any]
         except Exception as e:
-            logging.error('Failed deserializing the ImageDescription tag as json with error {}'.format(e))
+            logger.error('Failed deserializing the ImageDescription tag as json with error {}'.format(e))
             raise e
         # verify the file is not compressed
         self._tiff_details.check_compression()
@@ -293,7 +296,7 @@ class CapellaDetails(object):
             freq_min = fc - 0.5*bw
             return RadarCollectionType(
                 TxPolarization=radar['transmit_polarization'],
-                TxFrequency=TxFrequencyType(Min=freq_min, Max=freq_min + bw),
+                TxFrequency=(freq_min, freq_min + bw),
                 Waveform=[WaveformParametersType(
                     TxRFBandwidth=bw,
                     TxPulseLength=radar['pulse_duration'],
@@ -327,7 +330,7 @@ class CapellaDetails(object):
             if algo == 'BACKPROJECTION':
                 processings = [ProcessingType(Type='Backprojected to DEM', Applied=True), ]
             if algo not in ('PFA', 'RMA', 'RGAZCOMP'):
-                logging.warning(
+                logger.warning(
                     'Image formation algorithm {} not one of the recognized SICD options, '
                     'being set to "OTHER".'.format(algo))
                 algo = 'OTHER'
@@ -338,9 +341,9 @@ class CapellaDetails(object):
                 TStartProc=0,
                 TEndProc=duration,
                 TxRcvPolarizationProc='{}:{}'.format(radar['transmit_polarization'], radar['receive_polarization']),
-                TxFrequencyProc=TxFrequencyProcType(
-                    MinProc=radar_collection.TxFrequency.Min,
-                    MaxProc=radar_collection.TxFrequency.Max),
+                TxFrequencyProc=(
+                    radar_collection.TxFrequency.Min,
+                    radar_collection.TxFrequency.Max),
                 STBeamComp='NO',
                 ImageBeamComp='NO',
                 AzAutofocus='NO',

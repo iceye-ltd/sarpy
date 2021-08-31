@@ -18,22 +18,25 @@ from sarpy.compliance import string_types, int_func
 from sarpy.io.complex.base import SICDTypeReader, h5py, is_hdf5
 from sarpy.io.complex.sicd_elements.blocks import Poly2DType, Poly1DType
 from sarpy.io.complex.sicd_elements.SICD import SICDType
-from sarpy.io.complex.sicd_elements.CollectionInfo import CollectionInfoType, RadarModeType
+from sarpy.io.complex.sicd_elements.CollectionInfo import CollectionInfoType, \
+    RadarModeType
 from sarpy.io.complex.sicd_elements.ImageCreation import ImageCreationType
 from sarpy.io.complex.sicd_elements.RadarCollection import RadarCollectionType, \
-    TxFrequencyType, ChanParametersType, WaveformParametersType
+    ChanParametersType, WaveformParametersType
 from sarpy.io.complex.sicd_elements.ImageData import ImageDataType
 from sarpy.io.complex.sicd_elements.GeoData import GeoDataType, SCPType
 from sarpy.io.complex.sicd_elements.Position import PositionType, XYZPolyType
 from sarpy.io.complex.sicd_elements.Grid import GridType, DirParamType, WgtTypeType
 from sarpy.io.complex.sicd_elements.Timeline import TimelineType, IPPSetType
-from sarpy.io.complex.sicd_elements.ImageFormation import ImageFormationType, TxFrequencyProcType, RcvChanProcType
+from sarpy.io.complex.sicd_elements.ImageFormation import ImageFormationType, \
+    RcvChanProcType
 from sarpy.io.complex.sicd_elements.RMA import RMAType, INCAType
 from sarpy.io.complex.sicd_elements.Radiometric import RadiometricType
 from sarpy.io.general.base import BaseReader, BaseChipper, SarpyIOError
 from sarpy.io.general.utils import get_seconds, parse_timestring, is_file_like
 from sarpy.io.complex.utils import fit_position_xvalidation, two_dim_poly_fit
 
+logger = logging.getLogger(__name__)
 
 ########
 # base expected functionality for a module with an implemented Reader
@@ -65,7 +68,7 @@ def is_a(file_name):
 
     try:
         iceye_details = ICEYEDetails(file_name)
-        logging.info('File {} is determined to be a ICEYE file.'.format(file_name))
+        logger.info('File {} is determined to be a ICEYE file.'.format(file_name))
         return ICEYEReader(iceye_details)
     except SarpyIOError:
         return None
@@ -224,8 +227,7 @@ class ICEYEDetails(object):
             # type : () -> RadarCollection
             return RadarCollectionType(
                 TxPolarization=tx_pol,
-                TxFrequency=TxFrequencyType(Min=min_freq,
-                                            Max=max_freq),
+                TxFrequency=(min_freq, max_freq),
                 Waveform=[WaveformParametersType(TxFreqStart=min_freq,
                                                  TxRFBandwidth=tx_bandwidth,
                                                  TxPulseLength=hf['chirp_duration'][()],
@@ -243,7 +245,7 @@ class ICEYEDetails(object):
                 ImageFormAlgo='RMA',
                 TStartProc=0,
                 TEndProc=duration,
-                TxFrequencyProc=TxFrequencyProcType(MinProc=min_freq, MaxProc=max_freq),
+                TxFrequencyProc=(min_freq, max_freq),
                 STBeamComp='NO',
                 ImageBeamComp='SV',
                 AzAutofocus='NO',
@@ -296,9 +298,9 @@ class ICEYEDetails(object):
             t_dop_centroid_poly, residuals, rank, sing_values = two_dim_poly_fit(
                 range_scp_m, azimuth_scp_m, dc_sample_array, x_order=x_order, y_order=y_order,
                 x_scale=1e-3, y_scale=1e-3, rcond=1e-40)
-            logging.info(
-                'The dop_centroid_poly fit details:\nroot mean square '
-                'residuals = {}\nrank = {}\nsingular values = {}'.format(
+            logger.info(
+                'The dop_centroid_poly fit details:\n\troot mean square '
+                'residuals = {}\n\trank = {}\n\tsingular values = {}'.format(
                     residuals, rank, sing_values))
 
             # define and fit the time coa array
@@ -307,9 +309,9 @@ class ICEYEDetails(object):
             t_time_coa_poly, residuals, rank, sing_values = two_dim_poly_fit(
                 range_scp_m, azimuth_scp_m, time_coa, x_order=x_order, y_order=y_order,
                 x_scale=1e-3, y_scale=1e-3, rcond=1e-40)
-            logging.info(
-                'The time_coa_poly fit details:\nroot mean square '
-                'residuals = {}\nrank = {}\nsingular values = {}'.format(
+            logger.info(
+                'The time_coa_poly fit details:\n\troot mean square '
+                'residuals = {}\n\trank = {}\n\tsingular values = {}'.format(
                     residuals, rank, sing_values))
             return t_dop_centroid_poly, t_time_coa_poly
 

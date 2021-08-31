@@ -2,6 +2,9 @@
 The main NITF header definitions.
 """
 
+__classification__ = "UNCLASSIFIED"
+__author__ = "Thomas McCullough"
+
 import logging
 
 from .base import NITFElement, UserHeaderType, _IntegerDescriptor,\
@@ -10,9 +13,7 @@ from .base import NITFElement, UserHeaderType, _IntegerDescriptor,\
 from .security import NITFSecurityTags, NITFSecurityTags0
 from sarpy.compliance import string_types
 
-
-__classification__ = "UNCLASSIFIED"
-__author__ = "Thomas McCullough"
+logger = logging.getLogger(__name__)
 
 
 #############
@@ -146,7 +147,7 @@ class NITFHeader(NITFElement):
         docstring='The data extension basic information.')  # type: DataExtensionsType
     ReservedExtensions = _NITFElementDescriptor(
         'ReservedExtensions', True, ReservedExtensionsType, default_args={},
-        docstring='The reserved extension basic information.') # type: ReservedExtensionsType
+        docstring='The reserved extension basic information.')  # type: ReservedExtensionsType
     UserHeader = _NITFElementDescriptor(
         'UserHeader', True, UserHeaderType, default_args={},
         docstring='User defined header.')  # type: UserHeaderType
@@ -354,7 +355,7 @@ class NITFHeader0(NITFElement):
         if len(value) != 5:
             raise ValueError('FVER must have length 5')
         if value not in ['02.00', '01.10']:
-            logging.warning('Got unexpected version {}, and NITF parsing is likely to fail.'.format(value))
+            logger.warning('Got unexpected version {}, and NITF parsing is likely to fail.'.format(value))
         self._FVER = value
 
     @property

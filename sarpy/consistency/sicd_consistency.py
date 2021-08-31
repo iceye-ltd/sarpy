@@ -22,10 +22,10 @@ import os
 from typing import Union
 
 from sarpy.compliance import string_types
+from sarpy.io.xml.base import parse_xml_from_string
 from sarpy.io.general.nitf import NITFDetails
 from sarpy.io.general.nitf_elements.des import DataExtensionHeader, \
     DataExtensionHeader0
-from sarpy.io.general.utils import parse_xml_from_string
 from sarpy.io.complex.sicd import SICDReader, SICDDetails, extract_clas
 from sarpy.io.complex.sicd_elements.SICD import SICDType
 from sarpy.io.complex.sicd_schema import get_urn_details, get_schema_path, \
@@ -258,7 +258,7 @@ def check_sicd_file(nitf_details):
                 elif 'SICD' in root_node.tag:
                     sicd_des.append((i, des_string, des_header))
             except Exception as e:
-                logging.error('Failed parsing the xml DES entry {} as xml'.format(i))
+                logger.error('Failed parsing the xml DES entry {} as xml'.format(i))
                 raise e
 
         if len(sicd_des) == 0:

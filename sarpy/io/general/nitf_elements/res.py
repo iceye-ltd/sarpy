@@ -2,13 +2,14 @@
 The reserved extension subheader definitions.
 """
 
+__classification__ = "UNCLASSIFIED"
+__author__ = "Thomas McCullough"
+
+
 from .base import BaseNITFElement, NITFElement, Unstructured, _IntegerDescriptor,\
     _StringDescriptor, _StringEnumDescriptor, _NITFElementDescriptor, \
     _parse_nitf_element
 from .security import NITFSecurityTags, NITFSecurityTags0
-
-__classification__ = "UNCLASSIFIED"
-__author__ = "Thomas McCullough"
 
 
 class RESUserHeader(Unstructured):
@@ -78,7 +79,6 @@ class ReservedExtensionHeader(NITFElement):
             return start + val.get_bytes_length()
         else:
             return super(ReservedExtensionHeader, cls)._parse_attribute(fields, attribute, value, start)
-
 
 
 class ReservedExtensionHeader0(NITFElement):

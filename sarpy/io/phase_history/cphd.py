@@ -2,6 +2,10 @@
 Module for reading and writing CPHD files - should support reading CPHD version 0.3 and 1.0 and writing version 1.0.
 """
 
+__classification__ = "UNCLASSIFIED"
+__author__ = "Thomas McCullough"
+
+
 import logging
 import os
 from typing import Union, Tuple, Dict, BinaryIO
@@ -10,7 +14,8 @@ from collections import OrderedDict
 import numpy
 
 from sarpy.compliance import int_func, integer_types, string_types
-from sarpy.io.general.utils import parse_xml_from_string, validate_range, is_file_like
+from sarpy.io.xml.base import parse_xml_from_string
+from sarpy.io.general.utils import validate_range, is_file_like
 from sarpy.io.general.base import AbstractWriter, BaseReader, BIPChipper, SarpyIOError
 
 from sarpy.io.phase_history.cphd1_elements.utils import binary_format_string_to_dtype
@@ -18,9 +23,7 @@ from sarpy.io.phase_history.cphd1_elements.utils import binary_format_string_to_
 from sarpy.io.phase_history.cphd1_elements.CPHD import CPHDType, CPHDHeader, _CPHD_SECTION_TERMINATOR
 from sarpy.io.phase_history.cphd0_3_elements.CPHD import CPHDType as CPHDType0_3, CPHDHeader as CPHDHeader0_3
 
-
-__classification__ = "UNCLASSIFIED"
-__author__ = "Thomas McCullough"
+logger = logging.getLogger(__name__)
 
 
 def is_a(file_name):
@@ -40,7 +43,7 @@ def is_a(file_name):
 
     try:
         cphd_details = CPHDDetails(file_name)
-        logging.info('File {} is determined to be a CPHD version {} file.'.format(file_name, cphd_details.cphd_version))
+        logger.info('File {} is determined to be a CPHD version {} file.'.format(file_name, cphd_details.cphd_version))
         return CPHDReader(cphd_details)
     except SarpyIOError:
         # we don't want to catch parsing errors, for now?
@@ -381,6 +384,38 @@ class CPHDReader(BaseReader):
         Returns
         -------
         numpy.ndarray
+
+        Examples
+        --------
+        The **preferred syntax** is to use Python slice syntax or call syntax,
+        and the following yield equivalent results
+
+        .. code-block:: python
+
+            data = reader[start:stop:stride, start:stop:stride, index]
+            data = reader((start1, stop1, stride1), (start2, stop2, stride2), index=index)`
+            data = reader.read_chip((start1, stop1, stride1), (start2, stop2, stride2) index=index)
+
+        Here the slice on index (dimension 3) is limited to a single integer. No
+        slice on index will default to `index=0`, that is :code:`reader[:, :]` and
+        :code:`reader[:, :, 0]` yield equivalent results.
+
+        The convention for slice and call syntax is as expected from standard Python convention.
+        In the read_chip` method, the convention is a little unusual. The following yield
+        equivalent results
+
+        .. code-block:: python
+
+            data = reader.read_chip(stride1, stride2)
+            data = reader.read_chip((stride1, ), (stride2, ))
+            data = reader[::stride1, ::stride2]
+
+        Likewise, the following yield equivalent results
+
+        .. code-block:: python
+
+            data = reader.read_chip((stop1, stride1), (stop2, stride2))
+            data = reader[:stop1:stride1, :stop2:stride2]
         """
 
         return self.__call__(dim1range, dim2range, index=index)
@@ -555,10 +590,10 @@ class CPHDReader1_0(CPHDReader):
 
         self._pvp_memmap = None
         if self.cphd_meta.Data.Channels is None:
-            logging.error('No Data.Channels defined.')
+            logger.error('No Data.Channels defined.')
             return
         if self.cphd_meta.PVP is None:
-            logging.error('No PVP object defined.')
+            logger.error('No PVP object defined.')
             return
 
         pvp_dtype = self.cphd_meta.PVP.get_vector_dtype()
@@ -1000,7 +1035,7 @@ class CPHDWriter1_0(AbstractWriter):
                     'Observed dtype for {} does not match the expected dtype\nobserved {}\nexpected {}.'.format(
                         purpose, observed_dtype, expected_dtype))
             if obs_entry[0] != exp_entry[0]:
-                logging.warning(
+                logger.warning(
                     'Got mismatched field names (observed {}, expected {}) for {}.'.format(
                         obs_entry[0], exp_entry[0], purpose))
 
@@ -1152,7 +1187,7 @@ class CPHDWriter1_0(AbstractWriter):
         """
 
         if self._writing_state['header']:
-            logging.warning('The header for CPHD file {} has already been written. Exiting.'.format(self._file_name))
+            logger.warning('The header for CPHD file {} has already been written. Exiting.'.format(self._file_name))
             return
 
         with open(self._file_name, "wb") as outfile:
@@ -1214,8 +1249,9 @@ class CPHDWriter1_0(AbstractWriter):
         self._writing_state['support'][identifier] += pixel_count
         # check if the written pixels is seemingly ridiculous or redundant
         if self._writing_state['support'][identifier] > total_pixels:
-            logging.warning(
-                'Appear to have written {} total pixels to support array {}, which only has {} pixels. '
+            logger.warning(
+                'Appear to have written {} total pixels to support array {},\n\t'
+                'which only has {} pixels.\n\t'
                 'This may be indicative of an error.'.format(
                     self._writing_state['support'][identifier], identifier, total_pixels))
 
@@ -1256,8 +1292,9 @@ class CPHDWriter1_0(AbstractWriter):
         self._pvp_memmaps[identifier][rows[0]:rows[1]] = data
         self._writing_state['pvp'][identifier] += data.shape[0]
         if self._writing_state['pvp'][identifier] > entry.NumVectors:
-            logging.warning(
-                'Appear to have written {} total rows to pvp block {}, which only has {} rows. '
+            logger.warning(
+                'Appear to have written {} total rows to pvp block {},\n\t'
+                'which only has {} rows.\n\t'
                 'This may be indicative of an error.'.format(
                     self._writing_state['pvp'][identifier], identifier, entry.NumVectors))
 
@@ -1353,8 +1390,9 @@ class CPHDWriter1_0(AbstractWriter):
         self._writing_state['signal'][identifier] += pixel_count
         # check if the written pixels is seemingly ridiculous or redundant
         if self._writing_state['signal'][identifier] > total_pixels:
-            logging.warning(
-                'Appear to have written {} total pixels to signal block {}, which only has {} pixels. '
+            logger.warning(
+                'Appear to have written {} total pixels to signal block {},\n\t'
+                'which only has {} pixels.\n\t'
                 'This may be indicative of an error.'.format(
                     self._writing_state['signal'][identifier], identifier, total_pixels))
 
@@ -1419,13 +1457,13 @@ class CPHDWriter1_0(AbstractWriter):
                         entry.Identifier, self._writing_state['support'][entry.Identifier], support_pixels)
 
         if not status:
-            logging.error('CPHD file %s is not completely written, and the result may be corrupt.', self._file_name)
+            logger.error('CPHD file %s is not completely written, and the result may be corrupt.', self._file_name)
             if pvp_message != '':
-                logging.error('PVP block(s) incompletely written\n%s', pvp_message)
+                logger.error('PVP block(s) incompletely written\n%s', pvp_message)
             if signal_message != '':
-                logging.error('Signal block(s) incompletely written\n%s', signal_message)
+                logger.error('Signal block(s) incompletely written\n%s', signal_message)
             if support_message != '':
-                logging.error('Support block(s) incompletely written\n%s',support_message)
+                logger.error('Support block(s) incompletely written\n%s',support_message)
         return status
 
     def close(self):

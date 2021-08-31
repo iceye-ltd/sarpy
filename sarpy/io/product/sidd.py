@@ -11,11 +11,13 @@ import sys
 from functools import reduce
 import re
 from typing import List, Union, BinaryIO
+from datetime import datetime
 
 import numpy
 
 from sarpy.compliance import int_func, string_types
-from sarpy.io.general.utils import parse_xml_from_string, is_file_like
+from sarpy.io.xml.base import parse_xml_from_string
+from sarpy.io.general.utils import is_file_like
 from sarpy.io.general.base import AggregateChipper, SarpyIOError
 from sarpy.io.general.nitf import NITFDetails, NITFReader, NITFWriter, ImageDetails, DESDetails, \
     image_segmentation, get_npp_block, interpolate_corner_points_string
@@ -27,6 +29,8 @@ from sarpy.io.product.sidd1_elements.SIDD import SIDDType as SIDDType1
 from sarpy.io.complex.sicd_elements.SICD import SICDType
 from sarpy.io.complex.sicd import extract_clas as extract_clas_sicd
 
+
+logger = logging.getLogger(__name__)
 
 ########
 # module variables
@@ -55,7 +59,7 @@ def is_a(file_name):
     try:
         nitf_details = SIDDDetails(file_name)
         if nitf_details.is_sidd:
-            logging.info('File {} is determined to be a SIDD (NITF format) file.'.format(file_name))
+            logger.info('File {} is determined to be a SIDD (NITF format) file.'.format(file_name))
             return SIDDReader(nitf_details)
         else:
             return None
@@ -154,7 +158,7 @@ class SIDDDetails(NITFDetails):
                     elif 'SICD' in root_node.tag:
                         self._sicd_meta.append(SICDType.from_node(root_node, xml_ns, ns_key='default'))
                 except Exception as e:
-                    logging.error('Failed checking des xml header at index {} with error {}'.format(i, e))
+                    logger.error('Failed checking des xml header at index {} with error {}'.format(i, e))
                     continue
             elif subhead_bytes.startswith(b'DESIDD_XML'):
                 # This is an old format SIDD header
@@ -165,8 +169,9 @@ class SIDDDetails(NITFDetails):
                         self._is_sidd = True
                         self._sidd_meta.append(SIDDType.from_node(root_node, xml_ns, ns_key='default'))
                 except Exception as e:
-                    logging.error('We found an apparent old-style SIDD DES header at index {}, '
-                                  'but failed parsing with error {}'.format(i, e))
+                    logger.error(
+                        'We found an apparent old-style SIDD DES header at index {},\n\t'
+                        'but failed parsing with error {}'.format(i, e))
                     continue
             elif subhead_bytes.startswith(b'DESICD_XML'):
                 # This is an old format SICD header
@@ -176,8 +181,9 @@ class SIDDDetails(NITFDetails):
                     if 'SICD' in root_node.tag:
                         self._sicd_meta.append(SICDType.from_node(root_node, xml_ns, ns_key='default'))
                 except Exception as e:
-                    logging.error('We found an apparent old-style SICD DES header at index {}, '
-                                  'but failed parsing with error {}'.format(i, e))
+                    logger.error(
+                        'We found an apparent old-style SICD DES header at index {},\n\t'
+                        'but failed parsing with error {}'.format(i, e))
                     continue
 
         if not self._is_sidd:
@@ -381,8 +387,8 @@ def validate_sidd_for_writing(sidd_meta):
             raise ValueError('Unhandled type {}'.format(type(the_sidd)))
         result = evaluate_xml_versus_schema(xml_str, urn)
         if result is False:
-            logging.warning(
-                'The provided SIDD does not properly validate '
+            logger.warning(
+                'The provided SIDD does not properly validate\n\t'
                 'against the schema for {}'.format(urn))
 
     if isinstance(sidd_meta, (SIDDType, SIDDType1)):
@@ -478,8 +484,9 @@ def extract_clsy(the_sidd):
     elif owner == 'NATO':
         return 'XN'
     else:
-        logging.warning('Got owner {}, and the CLSY will be truncated '
-                        'to two characters.'.format(owner))
+        logger.warning(
+            'Got owner {}, and the CLSY will be truncated\n\t'
+            'to two characters.'.format(owner))
         return owner[:2]
 
 
@@ -817,7 +824,10 @@ class SIDDWriter(NITFWriter):
         security_tags = self.security_tags
         sicd = self.sicd_meta[index]
         uh_args = sicd.get_des_details(check_version1_compliance=True)
-        desshdt = str(sicd.ImageCreation.DateTime.astype('datetime64[s]'))
+        if sicd.ImageCreation.DateTime is None:
+            desshdt = datetime.utcnow().isoformat('T', timespec='seconds')
+        else:
+            desshdt = str(sicd.ImageCreation.DateTime.astype('datetime64[s]'))
         if desshdt[-1] != 'Z':
             desshdt += 'Z'
         uh_args['DESSHDT'] = desshdt
